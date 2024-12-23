@@ -1,6 +1,7 @@
 # Ignore the env.py file containing private keys
 env.py
 training_data.db
+hardy-moon-445610-p0-ced3f5219893.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

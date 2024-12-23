@@ -5,7 +5,7 @@ import sqlite3
 from datetime import datetime
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
-from env import API_KEY
+from env import API_KEY, SPREADSHEET_ID
 
 
 '''
@@ -54,7 +54,7 @@ sessions = {} #Initialize a dictionary for storing the session
 # Starting a session
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    await update.message.reply_text("Key in date of Training (DD/MM/YYY):")
+    await update.message.reply_text("Key in date of Training (DD/MM/YYYY):")
     sessions[user_id] = {"entries": []}
     return DATE
 
@@ -133,7 +133,7 @@ async def close(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
     
     del sessions[user_id]
-    await update.message.reply_text("Session closed and data saved. REMEMBER TO /upload to upload to googlesheets")
+    await update.message.reply_text("Session closed and data saved. REMEMBER TO /upload to upload to Google Sheets")
     return ConversationHandler.END
 
 async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -149,11 +149,11 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     # Google Sheets set up
-    credentials = Credentials.from_service_account_file("./hardy-moon-445610-p0-c15bc3b1ebe5.json")
+    credentials = Credentials.from_service_account_file("./hardy-moon-445610-p0-ced3f5219893.json")
     service = build("sheets", "v4", credentials=credentials)
     sheet = service.spreadsheets()
     
-    spreadsheet_id = "1WW74HhIc0ShK5i1_1YkKaF2X4U-HmVE-6OIfOnc6Uq0"
+    spreadsheet_id = SPREADSHEET_ID
     
     # Group rows by date for session-based uploading
     sessions = {}
@@ -203,20 +203,21 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Upload data
         try:
+            spacing_body = {"values": [[""] * len(values[0])]}
             sheet.values().append(
                 spreadsheetId=spreadsheet_id,
-                range=range_,
+                range=sheet_name,
                 valueInputOption="RAW",
-                body={"values": values}
+                body= spacing_body
             ).execute()
 
             # Add spacing row
             spacing_body = {"values": [[""] * len(values[0])]}
             sheet.values().append(
                 spreadsheetId=spreadsheet_id,
-                range=range_,
+                range=sheet_name,
                 valueInputOption="RAW",
-                body=spacing_body
+                body= {"values": values}
             ).execute()
         except Exception as e:
             await update.message.reply_text(f"Error uploading data: {e}")
@@ -229,6 +230,32 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("Data uploaded to Google Sheets.")
 
+### Reset the upload statuses ###
+async def reset_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    conn = sqlite3.connect(DATABASE) # Connect to database
+    cursor = conn.cursor() # Intermediary cursor to execute SQL codes
+    
+    cursor.execute("UPDATE training_data SET uploaded = 0 WHERE uploaded = 1")
+    
+    conn.commit()
+    conn.close()
+    await update.message.reply_text("Uploaded status has been reset.")
+    
+
+async def reorder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    conn = sqlite3.connect(DATABASE) # Connect to database
+    cursor = conn.cursor() # Intermediary cursor to execute SQL codes
+    
+    cursor.execute("SELECT * FROM training_data ORDER BY strftime('%Y-%m-%d', date) ASC")
+    
+    # Fetch and process the results
+    rows = cursor.fetchall()
+    conn.close()  # Close the connection to release resources
+    
+    if rows:
+        await update.message.reply_text("Data re-ordered")
+    else:
+        await update.message.reply_text("No data found to re-order")
 
 def main():
     print("Starting bot...")
@@ -249,6 +276,8 @@ def main():
     
     application.add_handler(conv_handler)
     application.add_handler(CommandHandler("upload", upload))
+    application.add_handler(CommandHandler("reorder", reorder))
+    application.add_handler(CommandHandler("reset_upload", reset_upload))
     print("Polling...")
     application.run_polling()
 

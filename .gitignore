@@ -1,5 +1,6 @@
 # Ignore the env.py file containing private keys
 env.py
+training_data.db
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

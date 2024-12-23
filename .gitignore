@@ -1,3 +1,6 @@
+# Ignore the env.py file containing private keys
+env.py
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

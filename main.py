@@ -137,7 +137,7 @@ async def webhook(request: Request, token: str):
         update = await request.json()
         application = Application.builder().token(API_KEY).build()
         telegram_update = Update.de_json(update, application.bot)
-        application.process_update(telegram_update)
+        await application.process_update(telegram_update)
         return {"status": "ok"}
     except Exception as e:
         # Log the error

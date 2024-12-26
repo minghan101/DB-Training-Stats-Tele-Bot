@@ -175,7 +175,7 @@ def start_bot():
     application.add_handler(CommandHandler("upload", upload))
 
     # Set webhook
-    webhook_url = "https://yourdomain.com/webhook/{}".format(API_KEY)
+    webhook_url = f"https://db-training-stats-tele-bot.onrender.com/webhook/{API_KEY}"
     application.bot.set_webhook(url=webhook_url)
 
 # Run the FastAPI server

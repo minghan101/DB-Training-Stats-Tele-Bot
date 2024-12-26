@@ -5,8 +5,9 @@ import sqlite3
 from datetime import datetime
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
-from env import API_KEY, SPREADSHEET_ID
-
+from env import API_KEY, SPREADSHEET_ID, DATABASE_URL
+import psycopg2
+import asyncpg
 
 '''
 SCHEMA: {
@@ -22,11 +23,12 @@ SCHEMA: {
 '''
 
 #Constants
-DATABASE = "training_data.db"
+#DATABASE = "training_data.db"
 
 #States for ConversationHandler
 DATE, ENTRY, CLOSING = range(3)
 
+'''
 #Set up database
 def init_db():
     connection = sqlite3.connect(DATABASE)
@@ -45,6 +47,29 @@ def init_db():
                    )
                    """
     )
+    connection.commit()
+    connection.close()
+'''
+
+#Constants
+DATABASE_URL = f'{DATABASE_URL}'
+
+def init_db():
+    connection = psycopg2.connect(DATABASE_URL)
+    cursor = connection.cursor()
+    cursor.execute("""
+                   CREATE TABLE IF NOT EXISTS training_data (
+                       id SERIAL PRIMARY KEY,
+                       date TEXT,
+                       distance INTEGER,
+                       time TEXT,
+                       pairs INTEGER,
+                       stroke_count INTEGER,
+                       stroke_rate INTEGER,
+                       remarks TEXT,
+                       uploaded BOOLEAN DEFAULT FALSE
+                   )
+                   """)
     connection.commit()
     connection.close()
 
@@ -137,12 +162,15 @@ async def close(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    conn = sqlite3.connect(DATABASE) # Connect to database
-    cursor = conn.cursor() # Intermediary cursor to execute SQL codes
-    
-    #Fetch all rows that have not been uploaded yet
-    cursor.execute("SELECT * from training_data WHERE uploaded = 0 ORDER BY date ASC")
-    rows = cursor.fetchall()
+    # Connect to PostgreSQL database
+    conn = await asyncpg.connect(DATABASE_URL)
+        
+    # Fetch all rows that have not been uploaded yet
+    rows = await conn.fetch("""
+        SELECT * FROM training_data 
+        WHERE uploaded = FALSE 
+        ORDER BY date ASC
+    """)
     
     if not rows:
         await update.message.reply_text("No new data to upload.")
@@ -152,13 +180,12 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     credentials = Credentials.from_service_account_file("./hardy-moon-445610-p0-ced3f5219893.json")
     service = build("sheets", "v4", credentials=credentials)
     sheet = service.spreadsheets()
-    
     spreadsheet_id = SPREADSHEET_ID
     
     # Group rows by date for session-based uploading
     sessions = {}
     for row in rows:
-        date = row[1]  # Assuming 'date' is the second column
+        date = row["date"]  # Assuming 'date' is the second column
         if date not in sessions:
             sessions[date] = []
         sessions[date].append(row)
@@ -166,7 +193,7 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Process each session
     for date, session_rows in sessions.items():
         # Determine the sheet name based on the month
-        session_date = datetime.strptime(date, "%d/%m/%Y")
+        session_date = datetime.strptime(date, "%Y-%m-%d") # PostgreSQL uses ISO date format
         sheet_name = session_date.strftime("%m/%Y")
         
         # Check if the sheet exists, create if not
@@ -196,8 +223,11 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Prepare data for upload
         values = [["Date", "Distance", "Time", "Pairs", "Stroke Count", "Stroke Rate", "Remarks"]]
         for row in session_rows:
-            values.append(row[1:-1])  # Exclude ID and uploaded flag
-
+            #values.append(row[1:-1])  # Exclude ID and uploaded flag
+            values.append([row["date"], row["distance"], row["time"], row["pairs"], 
+                           row["stroke_count"], row["stroke_rate"], row["remarks"]])
+            
+            
         # Determine the range (append to the sheet)
         range_ = f"{sheet_name}!A1"
         
@@ -224,38 +254,56 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
     # Mark all rows as uploaded
-    cursor.execute("UPDATE training_data SET uploaded = 1 WHERE uploaded = 0")
-    conn.commit()
-    conn.close()
-
+    await conn.execute("UPDATE training_data SET uploaded = TRUE WHERE uploaded = FALSE")
+    await conn.commit()
+    await conn.close()
     await update.message.reply_text("Data uploaded to Google Sheets.")
-
+    
 ### Reset the upload statuses ###
 async def reset_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    conn = sqlite3.connect(DATABASE) # Connect to database
-    cursor = conn.cursor() # Intermediary cursor to execute SQL codes
-    
-    cursor.execute("UPDATE training_data SET uploaded = 0 WHERE uploaded = 1")
-    
-    conn.commit()
-    conn.close()
-    await update.message.reply_text("Uploaded status has been reset.")
+    try:
+        # Connect to PostgreSQL database
+        conn = await asyncpg.connect(DATABASE_URL)
+        
+        # Execute query to reset the upload statuses
+        await conn.execute("""
+            UPDATE training_data 
+            SET uploaded = FALSE 
+            WHERE uploaded = TRUE
+        """)
+        
+        # Close the connection to release resources
+        await conn.close()
+        
+        # Notify the user
+        await update.message.reply_text("Uploaded status has been reset.")
+    except Exception as e:
+        # Handle errors and notify the user
+        await update.message.reply_text(f"An error occurred: {e}")
     
 
 async def reorder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    conn = sqlite3.connect(DATABASE) # Connect to database
-    cursor = conn.cursor() # Intermediary cursor to execute SQL codes
-    
-    cursor.execute("SELECT * FROM training_data ORDER BY strftime('%Y-%m-%d', date) ASC")
-    
-    # Fetch and process the results
-    rows = cursor.fetchall()
-    conn.close()  # Close the connection to release resources
-    
-    if rows:
-        await update.message.reply_text("Data re-ordered")
-    else:
-        await update.message.reply_text("No data found to re-order")
+    try:
+        # Connect to PostgreSQL database
+        conn = await asyncpg.connect(DATABASE_URL)
+        
+        # Execute query to fetch and reorder data by date (PostgreSQL handles dates natively)
+        rows = await conn.fetch("""
+            SELECT * FROM training_data 
+            ORDER BY date::DATE ASC
+        """)
+        
+        # Close the connection to release resources
+        await conn.close()
+        
+        # Process and respond to the results
+        if rows:
+            await update.message.reply_text("Data re-ordered successfully.")
+        else:
+            await update.message.reply_text("No data found to reorder.")
+    except Exception as e:
+        # Handle errors and notify the user
+        await update.message.reply_text(f"An error occurred: {e}")
 
 def main():
     print("Starting bot...")

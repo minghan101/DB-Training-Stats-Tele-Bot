@@ -119,16 +119,29 @@ async def close(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Session closed and data saved. REMEMBER TO /upload to upload to Google Sheets")
     return ConversationHandler.END
 
-# Webhook handling for Telegram updates
 @app.post("/webhook/{token}")
 async def webhook(request: Request, token: str):
     if token != API_KEY:
         return {"error": "Invalid token"}
     
-    update = await request.json()
-    telegram_update = Update.de_json(update, application.bot)
-    application.process_update(telegram_update)
-    return {"status": "ok"}
+    try:
+        # Log request body for debugging purposes
+        body = await request.body()
+        print("Received body:", body)
+
+        # If body is empty, return an error
+        if not body:
+            return {"error": "Empty body received from Telegram"}
+
+        # Try to parse the JSON data
+        update = await request.json()
+        telegram_update = Update.de_json(update, application.bot)
+        application.process_update(telegram_update)
+        return {"status": "ok"}
+    except Exception as e:
+        # Log the error
+        print(f"Error processing webhook: {str(e)}")
+        return {"error": f"An error occurred: {str(e)}"}
 
 # Upload data to Google Sheets
 async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):

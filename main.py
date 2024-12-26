@@ -14,6 +14,8 @@ from env import API_KEY, SPREADSHEET_ID, DATABASE_URL
 DATABASE_URL = os.getenv('DATABASE_URL')
 sessions = {}
 
+application = Application.builder().token(API_KEY).build()
+
 # FastAPI app
 app = FastAPI()
 
@@ -135,7 +137,6 @@ async def webhook(request: Request, token: str):
 
         # Try to parse the JSON data
         update = await request.json()
-        application = Application.builder().token(API_KEY).build()
         telegram_update = Update.de_json(update, application.bot)
         await application.process_update(telegram_update)
         return {"status": "ok"}

@@ -15,6 +15,7 @@ DATABASE_URL = os.getenv('DATABASE_URL')
 sessions = {}
 
 application = Application.builder().token(API_KEY).build()
+application = application.initialize()
 
 # FastAPI app
 app = FastAPI()
@@ -183,6 +184,8 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def start_bot():
     global application
     application = Application.builder().token(API_KEY).build()
+    
+    application.initialize() #For webhooks
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],

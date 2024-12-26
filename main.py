@@ -143,6 +143,12 @@ async def webhook(request: Request, token: str):
         print(f"Error processing webhook: {str(e)}")
         return {"error": f"An error occurred: {str(e)}"}
 
+@app.get("/webhook/{token}")
+async def webhook_get(request: Request, token: str):
+    if token != API_KEY:
+        return {"error": "Invalid token"}
+    return {"status": "Webhook is set up correctly."}
+
 # Upload data to Google Sheets
 async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = await asyncpg.connect(DATABASE_URL)

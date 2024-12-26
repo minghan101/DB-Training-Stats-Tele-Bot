@@ -6,8 +6,15 @@ from datetime import datetime
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from env import API_KEY, SPREADSHEET_ID
+from telegram import Bot
+import asyncio
 
+bot = Bot(token=API_KEY)
 
+async def set_webhook_async():
+    # Set the webhook asynchronously
+    await bot.set_webhook(url=f"https://MH.pythonanywhere.com/{API_KEY}")
+    
 '''
 SCHEMA: {
     date (string)
@@ -257,13 +264,19 @@ async def reorder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("No data found to re-order")
 
+'''
 def main():
     print("Starting bot...")
     init_db()
     application = Application.builder().token(API_KEY).build()
-    '''
-    Connect the bot to telegram using bot token/ API KEY
-    '''
+    
+    #Connect the bot to telegram using bot token/ API KEY
+    
+    
+    # Set the webhook in an async manner
+    #loop = asyncio.get_event_loop()
+    #loop.run_until_complete(set_webhook_async())  # Ensure the webhook is set before proceeding
+    #await set_webhook_async()
     
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
@@ -279,7 +292,50 @@ def main():
     application.add_handler(CommandHandler("reorder", reorder))
     application.add_handler(CommandHandler("reset_upload", reset_upload))
     print("Polling...")
-    application.run_polling()
+    #application.run_polling()
+    print("Running Webhook...")
+    application.run_webhook(
+        listen = "0.0.0.0", # Special IP address: Listen to all network interfaces on this machine. required to ensure server can receive requests from Telegram server
+        port=443, # Telegram requires bots using webhooks to run on a secure connection (HTTPS) and listen on port 443, 80, 88, or 8443. Port 443 is the most commonly used.
+        url_path=f"{API_KEY}", # Defines the URL path Telegram will use to send webhook updates to the bot
+        #Normally API_KEY is used to ensure only authorized requests, containing correct API_KEY in the URL, are accepted by the server
+        webhook_url=f"https://MH.pythonanywhere.com/{API_KEY}",
+        #Full URL that Telegram send updates for the bot hosted on PythonAnywhere domain.
+    )
 
 if __name__ == "__main__":
     main()
+'''
+
+def create_application():
+    from env import API_KEY  # Import API_KEY here to avoid circular imports
+    application = Application.builder().token(API_KEY).build()
+
+    DATE, ENTRY = range(2)
+
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler("start", start)],
+        states={
+            DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, set_date)],
+            ENTRY: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_entry)],
+        },
+        fallbacks=[CommandHandler("close", close)],
+    )
+
+    application.add_handler(conv_handler)
+    application.add_handler(CommandHandler("upload", upload))
+    application.add_handler(CommandHandler("reorder", reorder))
+    application.add_handler(CommandHandler("reset_upload", reset_upload))
+    
+    return application
+
+application = create_application()
+
+if __name__ == "__main__":
+    print("Starting bot...")
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=8080,
+        url_path=f"{API_KEY}",
+        webhook_url=f"https://MH.pythonanywhere.com/{API_KEY}",
+    )

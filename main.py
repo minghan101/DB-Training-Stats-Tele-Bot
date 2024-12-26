@@ -135,6 +135,7 @@ async def webhook(request: Request, token: str):
 
         # Try to parse the JSON data
         update = await request.json()
+        application = Application.builder().token(API_KEY).build()
         telegram_update = Update.de_json(update, application.bot)
         application.process_update(telegram_update)
         return {"status": "ok"}

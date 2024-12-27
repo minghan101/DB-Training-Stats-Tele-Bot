@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from fastapi_lifespan_manager import LifespanManager, State
+from fastapi.events import Lifespan
 from telegram import Update
 from bot import create_bot, init_db
 from env import API_KEY, WEBHOOK_URL
@@ -7,16 +7,17 @@ from env import API_KEY, WEBHOOK_URL
 # Create the bot instance
 bot_app = create_bot()
 
-# Create a LifespanManager
-app = LifespanManager()
+# Create the FastAPI application with a custom lifespan manager
+def app_lifespan():
+    async def lifespan(app: FastAPI):
+        # Startup tasks
+        await init_db()
+        await bot_app.bot.set_webhook(WEBHOOK_URL)
+        yield  # Application is running
+        # Shutdown tasks (if needed, add here)
+    return lifespan
 
-@app.lifespan
-async def startup_shutdown():
-    # Startup tasks
-    await init_db()
-    await bot_app.bot.set_webhook(WEBHOOK_URL)
-    yield  # Run the application
-    # Shutdown tasks (if needed, add here)
+app = FastAPI(lifespan=app_lifespan())
 
 @app.post("/webhook/{token}")
 async def webhook(token: str, request: Request):

@@ -126,25 +126,19 @@ async def close(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def webhook(request: Request, token: str):
     if token != API_KEY:
         return {"error": "Invalid token"}
-    
+
     try:
-        # Log request body for debugging purposes
-        body = await request.body()
-        print("Received body:", body)
+        # Parse incoming webhook payload
+        update_data = await request.json()
+        update = Update.de_json(update_data, application.bot)
 
-        # If body is empty, return an error
-        if not body:
-            return {"error": "Empty body received from Telegram"}
-
-        # Try to parse the JSON data
-        update = await request.json()
-        telegram_update = Update.de_json(update, application.bot)
-        await application.process_update(telegram_update)
+        # Process the update
+        await application.update_queue.put(update)
         return {"status": "ok"}
     except Exception as e:
-        # Log the error
-        print(f"Error processing webhook: {str(e)}")
+        print(f"Error processing webhook: {e}")
         return {"error": f"An error occurred: {str(e)}"}
+
 
 @app.get("/webhook/{token}")
 async def webhook_get(request: Request, token: str):
@@ -184,8 +178,6 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def start_bot():
     global application
     application = Application.builder().token(API_KEY).build()
-    
-    application.initialize() #For webhooks
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
@@ -198,9 +190,16 @@ def start_bot():
     application.add_handler(conv_handler)
     application.add_handler(CommandHandler("upload", upload))
 
+    # Run webhook
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=8000,
+        webhook_url=f"https://db-training-stats-tele-bot.onrender.com/webhook/{API_KEY}"
+    )
+    
     # Set webhook
-    webhook_url = f"https://db-training-stats-tele-bot.onrender.com/webhook/{API_KEY}"
-    application.bot.set_webhook(url=webhook_url)
+    #webhook_url = f"https://db-training-stats-tele-bot.onrender.com/webhook/{API_KEY}"
+    #application.bot.set_webhook(url=webhook_url)
 
 # Run the FastAPI server
 if __name__ == "__main__":

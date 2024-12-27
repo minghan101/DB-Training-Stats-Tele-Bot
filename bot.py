@@ -6,7 +6,6 @@ from datetime import datetime
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from env import API_KEY, SPREADSHEET_ID, DATABASE_URL
-import psycopg2
 import asyncpg
 
 '''
@@ -52,21 +51,21 @@ def init_db():
 '''
 
 async def init_db():
-    connection = await psycopg2.connect(DATABASE_URL)
-    await connection.execute("""
-            CREATE TABLE IF NOT EXISTS training_data (
-                id SERIAL PRIMARY KEY,
-                date TEXT,
-                distance INTEGER,
-                time TEXT,
-                pairs INTEGER,
-                stroke_count INTEGER,
-                stroke_rate INTEGER,
-                remarks TEXT,
-                uploaded BOOLEAN DEFAULT FALSE
-            )
-        """)
-    await connection.close()
+    conn = await asyncpg.connect(DATABASE_URL)
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS training_data (
+            id SERIAL PRIMARY KEY,
+            date TEXT,
+            distance INTEGER,
+            time TEXT,
+            pairs INTEGER,
+            stroke_count INTEGER,
+            stroke_rate INTEGER,
+            remarks TEXT,
+            uploaded BOOLEAN DEFAULT FALSE
+        )
+    """)
+    await conn.close()
 
 # Handlers
 sessions = {} #Initialize a dictionary for storing the session

@@ -49,7 +49,7 @@ def init_db():
     connection.close()
 
 # Handlers
-sessions = {} #Initialize a dictionary for storing the session
+sessions = {} #Initialize a dictionary for storing the data for the session temporarily. will be cleared after the session is closed
 
 # Starting a session
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):

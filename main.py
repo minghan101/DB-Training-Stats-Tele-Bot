@@ -233,7 +233,7 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ### Reset the upload statuses ###
 async def reset_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = sqlite3.connect(DATABASE) # Connect to database
-    cursor = conn.cursor() # Intermediary cursor to execute SQL codes
+    cursor = conn.cursor() #intermediary cursor to execute SQL codes
     
     cursor.execute("UPDATE training_data SET uploaded = 0 WHERE uploaded = 1")
     
@@ -244,13 +244,13 @@ async def reset_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def reorder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = sqlite3.connect(DATABASE) # Connect to database
-    cursor = conn.cursor() # Intermediary cursor to execute SQL codes
+    cursor = conn.cursor() # intermediary cursor to execute SQL codes
     
     cursor.execute("SELECT * FROM training_data ORDER BY strftime('%Y-%m-%d', date) ASC")
     
-    # Fetch and process the results
+    #fetch and process the results
     rows = cursor.fetchall()
-    conn.close()  # Close the connection to release resources
+    conn.close()  #close the connection to release resources
     
     if rows:
         await update.message.reply_text("Data re-ordered")
